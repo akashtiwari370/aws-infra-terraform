@@ -60,3 +60,12 @@ resource "aws_volume_attachment" "ebs_att" {
   instance_id = "i-09252ff919ef115bb"
 }
 
+resource "aws_s3_bucket" "terrabuck" {
+  bucket = "terra-bucket-for-git-post"
+  acl    = "public-read"
+
+  tags = {
+    Name        = "My bucket"
+    Environment = "Dev"
+  }
+}
