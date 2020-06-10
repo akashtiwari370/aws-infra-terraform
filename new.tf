@@ -45,5 +45,18 @@ resource "aws_instance" "terraos" {
   }
 }
 
+resource "aws_ebs_volume" "newvol" {
+  availability_zone = "ap-south-1b"
+  size              = 8
 
+  tags = {
+    Name = "newebs"
+  }
+}
+
+resource "aws_volume_attachment" "ebs_att" {
+  device_name = "/dev/sdc"
+  volume_id   = "vol-0f473dabe25202295"
+  instance_id = "i-09252ff919ef115bb"
+}
 
