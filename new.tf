@@ -20,7 +20,7 @@ resource "aws_key_pair" "generated_key" {
 
 
 resource "local_file" "key-file" {
-  content  = "${tls_private_key.tls_key.private_key_pem}"
+  content  = "tls_private_key.tls_key.private_key_pem"
   filename = "my-key.pem"
 
 
@@ -98,7 +98,7 @@ resource "aws_s3_bucket" "terra-bucket" {
 
 
 resource "aws_s3_bucket_object" "bucket-push" {
-  bucket = "${aws_s3_bucket.terra-bucket.bucket}"
+  bucket = "aws_s3_bucket.terra-bucket.bucket"
   key   =   "fbbg.png"
   source = "https://github.com/akashtiwari370/fbbg.png"
   acl    = "public-read"
@@ -109,7 +109,7 @@ resource "aws_s3_bucket_object" "bucket-push" {
 resource "aws_cloudfront_distribution" "s3-web-distribution" {
   origin {
     domain_name = "git-code-for-terra.s3.amazonaws.com"
-    origin_id   = "${aws_s3_bucket.terra-bucket.id}"
+    origin_id   = aws_s3_bucket.terra-bucket.id
   }
 
 
@@ -121,7 +121,7 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
   default_cache_behavior {
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "${aws_s3_bucket.terra-bucket.id}"
+    target_origin_id = aws_s3_bucket.terra-bucket.id
 
 
     forwarded_values {
@@ -173,7 +173,7 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
 
 
 resource "aws_ebs_volume" "terra-vol" {
-  availability_zone = "${aws_instance.web.availability_zone}"
+  availability_zone = aws_instance.web.availability_zone
   size              = 8
   
   tags = {
@@ -189,8 +189,8 @@ resource "aws_ebs_volume" "terra-vol" {
 
 resource "aws_volume_attachment" "ebs_att" {
   device_name  = "/dev/sdh"
-  volume_id    = "${aws_ebs_volume.terra-vol.id}"
-  instance_id  = "${aws_instance.web.id}"
+  volume_id    = aws_ebs_volume.terra-vol.id
+  instance_id  = aws_instance.web.id
   force_detach = true
 
 
@@ -199,8 +199,8 @@ resource "aws_volume_attachment" "ebs_att" {
       agent       = "false"
       type        = "ssh"
       user        = "ec2-user"
-      private_key = "${tls_private_key.tls_key.private_key_pem}"
-      host        = "${aws_instance.web.public_ip}"
+      private_key = tls_private_key.tls_key.private_key_pem
+      host        = aws_instance.web.public_ip
     }
     
     inline = [
