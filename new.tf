@@ -6,28 +6,34 @@ provider "aws" {
 
 resource "tls_private_key" "tls_key" {
   algorithm = "RSA"
+  rsa_bits = 2048
 }
 
-
-resource "aws_key_pair" "generated_key" {
-  key_name   = "my-key"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD3F6tyPEFEzV0LX3X8BsXdMsQz1x2cEikKDEY0aIj41qgxMCP/iteneqXSIFZBp5vizPvaoIR3Um9xK7PGoW8giupGn+EPuxIA4cDM4vzOqOkiMPhz5XK0whEjkVzTo4+S0puvDZuwIsdiW9mxhJc7tgBNL0cYlWSYVkz4G/fslNfRPW5mYAM49f4fhtxPb5ok4Q2Lg9dPKVHO/Bgeu5woMc7RY0p1ej6D4CKFE6lymSDJpW0YHX/wqE9+cfEauh7xZcG0q9t2ta6F6fmX0agvpFyZo8aFbXeUBr7osSCJNgvavWbM/06niWrOvYX2xwWdhXmXSrbX8ZbabVohBK41 email@example.com"
-
-    depends_on = [
-    tls_private_key.tls_key
-  ]
-}
 
 
 resource "local_file" "key-file" {
-  content  = "tls_private_key.tls_key.private_key_pem"
+  content  = tls_private_key.tls_key.private_key_pem
   filename = "my-key.pem"
-
+  file_permission = 0400
 
   depends_on = [
     tls_private_key.tls_key
   ]
 }
+
+
+
+
+resource "aws_key_pair" "generated_key" {
+  key_name   = "my-key"
+  public_key = tls_private_key.tls_key.public_key_openssh
+   
+ depends_on = [
+    tls_private_key.tls_key
+  ]
+}
+
+
 
 
 resource "aws_security_group" "allow_tls" {
@@ -52,6 +58,14 @@ resource "aws_security_group" "allow_tls" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+ egress {
+	from_port  =  0
+	to_port   =  0
+	protocol   =   "-1"
+	cidr_blocks =  [ "0.0.0.0/0" ]
+	
+}
+ 
   tags = {
     Name = "allow_tls"
   }
@@ -59,7 +73,7 @@ resource "aws_security_group" "allow_tls" {
 
 
 resource "aws_instance" "web" {
-  ami             = "ami-005956c5f0f757d37"
+  ami             = "ami-0447a12f28fddb066"
   instance_type   = "t2.micro"
   key_name        = "my-key"
   security_groups = ["allow_tls"]
@@ -76,6 +90,8 @@ resource "aws_instance" "web" {
     user     = "ec2-user"
     private_key   =   file("C:/users/Aki/Desktop/terra/task1/my-key.pem")
     host     = aws_instance.web.public_ip
+
+     
   }
 
 
@@ -83,39 +99,131 @@ provisioner "remote-exec" {
     inline = [
        "sudo yum install httpd  php git -y",
       "sudo systemctl restart httpd",
-      "sudo rm -rf /var/www/html/*",
       "sudo systemctl enable httpd",
-      "git clone https://github.com/akashtiwari370/fbPage"
+     
     ]
   }
 }
 
 
+resource "aws_ebs_volume" "terra-vol" {
+  availability_zone = aws_instance.web.availability_zone
+  size              = 8
+  
+  tags = {
+    Name = "ebs-vol"
+  }
+}
+
+
+
+
+
+resource "aws_volume_attachment" "ebs_att" {
+  device_name  = "/dev/sdh"
+  volume_id    = aws_ebs_volume.terra-vol.id
+  instance_id  = aws_instance.web.id
+  force_detach = true
+
+
+  provisioner "remote-exec" {
+    connection {
+      agent       = "false"
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = tls_private_key.tls_key.private_key_pem
+      host        = aws_instance.web.public_ip
+    }
+    
+    inline = [
+      "sudo mkfs.ext4  /dev/xvdh",
+      "sudo mount  /dev/xvdh  /var/www/html/",
+      "sudo rm -rf /var/www/html/*",
+      "sudo git clone https://github.com/akashtiwari370/cloud.git  /var/www/html/"
+    ]
+  }
+depends_on = [
+    aws_instance.web,
+    aws_ebs_volume.terra-vol
+  ]
+}
+  
+
+
+
+
 resource "aws_s3_bucket" "terra-bucket" {
   bucket = "git-code-for-terra"
   acl    = "public-read"
+
+	 provisioner "local-exec" {
+		command  =  "git clone https://github.com/akashtiwari370/cloud.git  terraform"
+	}
+	
+	tags =  {
+		Name = "terras3"
+		Environment  =  "Production"
+	}
+versioning {
+    enabled  =   true
 }
+
+
+}
+
 
 
 resource "aws_s3_bucket_object" "bucket-push" {
-  bucket = "aws_s3_bucket.terra-bucket.bucket"
-  key   =   "fbbg.png"
-  source = "https://github.com/akashtiwari370/fbbg.png"
+  bucket = aws_s3_bucket.terra-bucket.bucket
+  key   =   "1.jpg"
+  source = "terraform/1.jpg"
   acl    = "public-read"
 }
+
+resource "aws_s3_bucket_object" "bucket-push2" {
+  bucket = aws_s3_bucket.terra-bucket.bucket
+  key   =   "2.jpg"
+  source = "terraform/2.jpg"
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_object" "bucket-push3" {
+  bucket = aws_s3_bucket.terra-bucket.bucket
+  key   =   "3.jpg"
+  source = "terraform/3.jpg"
+  acl    = "public-read"
+}
+
+
+
+
+
+
+// ###################################################
+
 
 
 
 resource "aws_cloudfront_distribution" "s3-web-distribution" {
   origin {
-    domain_name = "git-code-for-terra.s3.amazonaws.com"
+    domain_name = aws_s3_bucket.terra-bucket.bucket_regional_domain_name
     origin_id   = aws_s3_bucket.terra-bucket.id
+
+	custom_origin_config {
+		http_port  =  80
+		https_port  =  80
+		origin_protocol_policy  = "match-viewer"
+		origin_ssl_protocols  =  [ "TLSv1", "TLSv1.1", "TLSv1.2" ]
+	}
+ 
   }
 
 
   enabled             = true
   is_ipv6_enabled     = true
- 
+
+
+	
 
 
   default_cache_behavior {
@@ -143,14 +251,14 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
 
   restrictions {
     geo_restriction {
-      restriction_type = "whitelist"
-      locations        = ["IN"]
+      restriction_type = "none"
+     
     }
   }
 
 
   tags = {
-    Name        = "Terra-CF-Distribution"
+    Name        = "Terra-Distribution"
     Environment = "Production"
   }
 
@@ -168,54 +276,11 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
 
 
 
+resource "null_resource"  "nullcall" {
+	provisioner "local-exec" {
+		command = "start chrome  ${aws_instance.web.public_ip}"
+		}
+	}
 
-
-
-
-resource "aws_ebs_volume" "terra-vol" {
-  availability_zone = aws_instance.web.availability_zone
-  size              = 8
-  
-  tags = {
-    Name = "ebs-vol"
-  }
-}
-
-
-
-
-
-
-
-resource "aws_volume_attachment" "ebs_att" {
-  device_name  = "/dev/sdh"
-  volume_id    = aws_ebs_volume.terra-vol.id
-  instance_id  = aws_instance.web.id
-  force_detach = true
-
-
-  provisioner "remote-exec" {
-    connection {
-      agent       = "false"
-      type        = "ssh"
-      user        = "ec2-user"
-      private_key = tls_private_key.tls_key.private_key_pem
-      host        = aws_instance.web.public_ip
-    }
-    
-    inline = [
-      "sudo mkfs.ext4 /dev/xvdh",
-      "sudo mount /dev/xvdh /var/www/html/",
-      "sudo cp /home/ec2-user/webapp.html /var/www/html/"
-    ]
-  }
-
-
-  depends_on = [
-    aws_instance.web,
-    aws_ebs_volume.terra-vol
-  ]
-}
-  
 
   
