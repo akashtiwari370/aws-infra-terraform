@@ -274,7 +274,7 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
 
  
 
-}
+
 
 
 provisioner "remote-exec" {
@@ -284,7 +284,7 @@ provisioner "remote-exec" {
     ]
   }
 
-
+	}
 
 
 resource "null_resource"  "nullcall" {
