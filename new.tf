@@ -271,7 +271,18 @@ resource "aws_cloudfront_distribution" "s3-web-distribution" {
   depends_on = [
     aws_s3_bucket.terra-bucket
   ]
+
+ 
+
 }
+
+
+provisioner "remote-exec" {
+    inline = [
+      "sudo bash -c 'echo export url=${aws_s3_bucket.terra-bucket.bucket_domain_name} >> /etc/apache2/envvars'",
+      "sudo sysytemctl restart apache2"
+    ]
+  }
 
 
 
